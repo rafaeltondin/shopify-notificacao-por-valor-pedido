@@ -63,6 +63,25 @@ class SistemaRecompensas:
         self.mensagens_enviadas = self.carregar_mensagens_enviadas()
         logger.info("Sistema de Recompensas inicializado.")
 
+        # Verificar conexão com Shopify
+        if self.verificar_conexao_shopify():
+            logger.info("Conexão com Shopify estabelecida com sucesso.")
+        else:
+            logger.error("Falha ao conectar com Shopify. Verifique suas credenciais.")
+
+    def verificar_conexao_shopify(self):
+        try:
+            session = requests_retry_session()
+            response = session.get(
+                f"https://{SHOP_NAME}/admin/api/2023-01/shop.json",
+                headers={"X-Shopify-Access-Token": ACCESS_TOKEN}
+            )
+            response.raise_for_status()
+            return True
+        except requests.RequestException as e:
+            logger.error(f"Erro ao conectar com Shopify: {str(e)}")
+            return False
+
     def calcular_desconto(self, total_gasto):
         logger.info(f"Calculando desconto para total gasto: R${total_gasto:.2f}")
         for i, faixa in enumerate(reversed(self.faixas_orcamento)):
@@ -368,10 +387,19 @@ def executar_diariamente():
     logger.info("Próxima execução agendada para amanhã às 09:00.")
 
 if __name__ == "__main__":
-    logger.info("Script iniciado. Aguardando até as 09:00 para a primeira execução...")
+    logger.info("Script iniciado.")
+
+    # Verificar conexão com Shopify
+    sistema_recompensas = SistemaRecompensas()
+    if sistema_recompensas.verificar_conexao_shopify():
+        logger.info("Conexão com Shopify estabelecida com sucesso.")
+    else:
+        logger.error("Falha ao conectar com Shopify. Verifique suas credenciais.")
+        sys.exit(1)  # Encerrar o script em caso de falha na conexão
 
     # Aguarda até as 09:00 da primeira execução
     schedule.every().day.at("09:00").do(executar)
+
     while True:
         schedule.run_pending()
         now = datetime.now()
