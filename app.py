@@ -398,7 +398,7 @@ if __name__ == "__main__":
         sys.exit(1)  # Encerrar o script em caso de falha na conexão
 
     # Aguarda até as 09:00 da primeira execução
-    schedule.every().day.at("09:00").do(executar)
+    schedule.every().day.at("07:45").do(executar)
 
     while True:
         schedule.run_pending()
