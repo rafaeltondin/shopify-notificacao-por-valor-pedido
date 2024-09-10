@@ -21,6 +21,9 @@ load_dotenv()
 logging.basicConfig(filename='recompensas.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Fuso horário de São Paulo
+SP_TIMEZONE = pytz.timezone('America/Sao_Paulo')
+
 # Configurações da API Shopify
 SHOP_NAME = os.getenv('SHOP_NAME')
 ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')
@@ -116,7 +119,7 @@ class SistemaRecompensas:
                           f"⚠️ Este número de WhatsApp é apenas para notificações sobre ofertas. "
                           f"Para dúvidas ou suporte, por favor, utilize o número: 5199692122")
                 
-                self.mensagens_enviadas[cliente_id] = datetime.now().isoformat()
+                self.mensagens_enviadas[cliente_id] = datetime.now(SP_TIMEZONE).isoformat()
                 self.salvar_mensagens_enviadas()
                 logger.info(f"Oferta gerada com sucesso para {nome}.")
                 return oferta
@@ -144,10 +147,10 @@ class SistemaRecompensas:
 
     def limpar_mensagens_antigas(self):
         logger.info("Limpando mensagens antigas (mais de 30 dias)...")
-        agora = datetime.now()
+        agora = datetime.now(SP_TIMEZONE)
         mensagens_removidas = 0
         for cliente_id, data_envio_str in list(self.mensagens_enviadas.items()):
-            data_envio = datetime.fromisoformat(data_envio_str)
+            data_envio = datetime.fromisoformat(data_envio_str).astimezone(SP_TIMEZONE)
             if (agora - data_envio).days >= 30:
                 del self.mensagens_enviadas[cliente_id]
                 mensagens_removidas += 1
@@ -168,7 +171,7 @@ def criar_cupom_shopify(nome, telefone, total_gasto):
     sufixo_telefone = telefone[-5:] if len(telefone) >= 5 else telefone.zfill(5)[-5:]
     codigo_cupom = f"{prefixo_nome}{sufixo_telefone}{categoria}"
 
-    data_inicio = datetime.now()
+    data_inicio = datetime.now(SP_TIMEZONE)
     data_fim = data_inicio + timedelta(days=7)
 
     price_rule_data = {
@@ -251,10 +254,10 @@ def calcular_total_gasto_cliente(customer_id):
     return total_gasto
 
 def buscar_pedidos_dia_anterior():
-    hoje = datetime.now(pytz.timezone('America/Sao_Paulo')).date()  # Usar fuso horário de São Paulo
-    ontem = hoje - timedelta(days=1)
-    data_busca = ontem.strftime('%Y-%m-%d')
-    logger.info(f"Buscando pedidos do dia anterior ({data_busca})...")
+    hoje_sp = datetime.now(SP_TIMEZONE).date()  # Usar fuso horário de São Paulo
+    ontem_sp = hoje_sp - timedelta(days=1)
+    data_busca = ontem_sp.strftime('%Y-%m-%d')
+    logger.info(f"Buscando pedidos do dia anterior ({data_busca}) em São Paulo...")
 
     pedidos = []
     url = f"https://{SHOP_NAME}/admin/api/2023-01/orders.json?created_at_min={data_busca}T00:00:00-03:00&created_at_max={data_busca}T23:59:59-03:00&status=any&limit=250"
@@ -273,7 +276,7 @@ def buscar_pedidos_dia_anterior():
                 logger.warning(f"Não foram encontrados pedidos para a data {data_busca} nesta página.")
             
             url = response.links.get('next', {}).get('url')
-        logger.info(f"Total de {len(pedidos)} pedidos encontrados para a data {data_busca}.")
+        logger.info(f"Total de {len(pedidos)} pedidos encontrados para a data {data_busca} em São Paulo.")
         return pedidos
     except requests.RequestException as e:
         logger.error(f"Erro ao buscar pedidos: {str(e)}")
@@ -381,7 +384,7 @@ def executar():
 
 def executar_diariamente():
     # Define a próxima execução para as 08:00 (horário de São Paulo)
-    schedule.every().day.at("08:00").do(executar)
+    schedule.every().day.at("08:00", SP_TIMEZONE).do(executar)
     logger.info("Próxima execução agendada para amanhã às 08:00 (horário de São Paulo).")
 
 if __name__ == "__main__":
@@ -400,7 +403,7 @@ if __name__ == "__main__":
 
         while True:
             schedule.run_pending()
-            now = datetime.now()
+            now = datetime.now(SP_TIMEZONE)
             proxima_execucao = schedule.next_run()
             tempo_restante = (proxima_execucao - now).total_seconds()
             logger.info(f"Próxima execução em {tempo_restante:.0f} segundos...")
