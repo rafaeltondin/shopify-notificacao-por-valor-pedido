@@ -383,8 +383,8 @@ def executar():
     logger.info("Processo concluído.")
 
 def executar_diariamente():
-    schedule.every().day.at("09:00").do(executar)
-    logger.info("Próxima execução agendada para amanhã às 09:00.")
+    schedule.every().day.at("07:45").do(executar)
+    logger.info("Próxima execução agendada para amanhã às 07:45.")
 
 if __name__ == "__main__":
     logger.info("Script iniciado.")
@@ -397,7 +397,7 @@ if __name__ == "__main__":
         logger.error("Falha ao conectar com Shopify. Verifique suas credenciais.")
         sys.exit(1)  # Encerrar o script em caso de falha na conexão
 
-    # Aguarda até as 09:00 da primeira execução
+    # Aguarda até as 07:45 da primeira execução
     schedule.every().day.at("07:45").do(executar)
 
     while True:
