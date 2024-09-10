@@ -63,13 +63,8 @@ class SistemaRecompensas:
         self.mensagens_enviadas = self.carregar_mensagens_enviadas()
         logger.info("Sistema de Recompensas inicializado.")
 
-        # Verificar conexão com Shopify
-        if self.verificar_conexao_shopify():
-            logger.info("Conexão com Shopify estabelecida com sucesso.")
-        else:
-            logger.error("Falha ao conectar com Shopify. Verifique suas credenciais.")
-
     def verificar_conexao_shopify(self):
+        logger.info("Verificando conexão com Shopify...")
         try:
             session = requests_retry_session()
             response = session.get(
@@ -77,6 +72,7 @@ class SistemaRecompensas:
                 headers={"X-Shopify-Access-Token": ACCESS_TOKEN}
             )
             response.raise_for_status()
+            logger.info("Conexão com Shopify estabelecida com sucesso.")
             return True
         except requests.RequestException as e:
             logger.error(f"Erro ao conectar com Shopify: {str(e)}")
@@ -159,10 +155,12 @@ class SistemaRecompensas:
         logger.info(f"Limpeza concluída. {mensagens_removidas} mensagens antigas removidas.")
 
 def criar_cupom_shopify(nome, telefone, total_gasto):
+    logger.info(f"Criando cupom Shopify para {nome}...")
     desconto = 20 if total_gasto >= 5000 else 15 if total_gasto >= 2000 else 10 if total_gasto >= 1000 else 5 if total_gasto >= 500 else 0
     categoria = "5000" if total_gasto >= 5000 else "2000" if total_gasto >= 2000 else "1000" if total_gasto >= 1000 else "500" if total_gasto >= 500 else "0"
 
     if desconto == 0:
+        logger.info(f"Cliente {nome} não elegível para cupom (total gasto: R${total_gasto:.2f}).")
         return None
 
     nome_limpo = re.sub(r'[^a-zA-Z]', '', nome)
@@ -253,13 +251,13 @@ def calcular_total_gasto_cliente(customer_id):
     return total_gasto
 
 def buscar_pedidos_dia_anterior():
-    hoje = datetime.now(pytz.UTC).date()
+    hoje = datetime.now(pytz.timezone('America/Sao_Paulo')).date()  # Usar fuso horário de São Paulo
     ontem = hoje - timedelta(days=1)
     data_busca = ontem.strftime('%Y-%m-%d')
     logger.info(f"Buscando pedidos do dia anterior ({data_busca})...")
 
     pedidos = []
-    url = f"https://{SHOP_NAME}/admin/api/2023-01/orders.json?created_at_min={data_busca}T00:00:00Z&created_at_max={data_busca}T23:59:59Z&status=any&limit=250"
+    url = f"https://{SHOP_NAME}/admin/api/2023-01/orders.json?created_at_min={data_busca}T00:00:00-03:00&created_at_max={data_busca}T23:59:59-03:00&status=any&limit=250"
     
     try:
         session = requests_retry_session()
@@ -373,8 +371,7 @@ def processar_clientes_dia_anterior(sistema_recompensas):
             time.sleep(intervalo)
         else:
             logger.info(f"Nenhuma oferta gerada para {cliente['nome']} neste momento.")
-            
-            
+
 def executar():
     logger.info("Iniciando o processo de busca de pedidos do dia anterior, geração de ofertas e envio de mensagens...")
     sistema_recompensas = SistemaRecompensas()
@@ -383,8 +380,9 @@ def executar():
     logger.info("Processo concluído.")
 
 def executar_diariamente():
-    schedule.every().day.at("07:45").do(executar)
-    logger.info("Próxima execução agendada para amanhã às 07:45.")
+    # Define a próxima execução para as 08:00 (horário de São Paulo)
+    schedule.every().day.at("08:00").do(executar)
+    logger.info("Próxima execução agendada para amanhã às 08:00 (horário de São Paulo).")
 
 if __name__ == "__main__":
     logger.info("Script iniciado.")
@@ -393,17 +391,21 @@ if __name__ == "__main__":
     sistema_recompensas = SistemaRecompensas()
     if sistema_recompensas.verificar_conexao_shopify():
         logger.info("Conexão com Shopify estabelecida com sucesso.")
+
+        # Executar a primeira vez imediatamente
+        executar()
+
+        # Agendar as próximas execuções para as 08:00 (horário de São Paulo)
+        executar_diariamente()
+
+        while True:
+            schedule.run_pending()
+            now = datetime.now()
+            proxima_execucao = schedule.next_run()
+            tempo_restante = (proxima_execucao - now).total_seconds()
+            logger.info(f"Próxima execução em {tempo_restante:.0f} segundos...")
+            time.sleep(60)
+
     else:
         logger.error("Falha ao conectar com Shopify. Verifique suas credenciais.")
         sys.exit(1)  # Encerrar o script em caso de falha na conexão
-
-    # Aguarda até as 07:45 da primeira execução
-    schedule.every().day.at("07:45").do(executar)
-
-    while True:
-        schedule.run_pending()
-        now = datetime.now()
-        proxima_execucao = schedule.next_run()
-        tempo_restante = (proxima_execucao - now).total_seconds()
-        logger.info(f"Próxima execução em {tempo_restante:.0f} segundos...")
-        time.sleep(60)
