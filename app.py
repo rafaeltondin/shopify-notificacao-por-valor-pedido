@@ -62,7 +62,7 @@ def requests_retry_session(
 class SistemaRecompensas:
     def __init__(self):
         self.faixas_orcamento = [500, 1000, 2000, 5000]
-        self.descontos = [5, 10, 15, 20]
+        self.descontos = [11, 13, 15, 20]
         self.mensagens_enviadas = self.carregar_mensagens_enviadas()
         logger.info("Sistema de Recompensas inicializado.")
 
